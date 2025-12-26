@@ -28,40 +28,72 @@ interface VenueCanvasProps {
 }
 
 // Snap configuration
-const SNAP_THRESHOLD = 10 // Pixels - distance within which snap activates
-const GRID_SIZE = 50 // Grid cell size in pixels
+const SNAP_THRESHOLD = 15 // Pixels - distance within which snap activates
+const GRID_SIZE = 50 // Visual Grid cell size (1 meter)
+const SNAP_GRID_SIZE = 5 // Snap Grid size (10cm)
 
 // Helper function to snap to grid
 const snapToGrid = (value: number, gridSize: number): number => {
     return Math.round(value / gridSize) * gridSize
 }
 
+// Helper to rotate a point around a center
+const rotatePoint = (point: { x: number, y: number }, center: { x: number, y: number }, rotationDeg: number) => {
+    if (!rotationDeg) return point
+    const rad = (rotationDeg * Math.PI) / 180
+    const cos = Math.cos(rad)
+    const sin = Math.sin(rad)
+    const dx = point.x - center.x
+    const dy = point.y - center.y
+    return {
+        x: center.x + (dx * cos - dy * sin),
+        y: center.y + (dx * sin + dy * cos)
+    }
+}
+
 // Helper to get snap points for an element (center, corners, edges)
 const getElementSnapPoints = (el: any) => {
-    const points: { x: number; y: number }[] = []
+    const points: { x: number; y: number, type: string }[] = []
+    const center = { x: el.x, y: el.y }
+
+    // Always snap to center
+    points.push({ ...center, type: 'center' })
 
     if (el.radius) {
-        // Circle element - center only
-        points.push({ x: el.x, y: el.y })
+        // Circle element - center only (already added)
     } else if (el.width && el.height) {
-        // Rectangle element
+        // Rectangle element (Wall, Table, etc.)
         const halfW = el.width / 2
         const halfH = el.height / 2
-        // Center
-        points.push({ x: el.x, y: el.y })
-        // Corners
-        points.push({ x: el.x - halfW, y: el.y - halfH }) // Top-left
-        points.push({ x: el.x + halfW, y: el.y - halfH }) // Top-right
-        points.push({ x: el.x - halfW, y: el.y + halfH }) // Bottom-left
-        points.push({ x: el.x + halfW, y: el.y + halfH }) // Bottom-right
-        // Edge midpoints
-        points.push({ x: el.x, y: el.y - halfH }) // Top
-        points.push({ x: el.x, y: el.y + halfH }) // Bottom
-        points.push({ x: el.x - halfW, y: el.y }) // Left
-        points.push({ x: el.x + halfW, y: el.y }) // Right
-    } else {
-        // Fallback to center
-        points.push({ x: el.x, y: el.y })
+        const rotation = el.rotation || 0
+
+        // Define unrotated corners relative to center
+        const corners = [
+            { x: el.x - halfW, y: el.y - halfH }, // Top-left
+            { x: el.x + halfW, y: el.y - halfH }, // Top-right
+            { x: el.x + halfW, y: el.y + halfH }, // Bottom-right
+            { x: el.x - halfW, y: el.y + halfH }  // Bottom-left
+        ]
+
+        // Define unrotated midpoints
+        const midpoints = [
+            { x: el.x, y: el.y - halfH }, // Top
+            { x: el.x + halfW, y: el.y }, // Right
+            { x: el.x, y: el.y + halfH }, // Bottom
+            { x: el.x - halfW, y: el.y }  // Left
+        ]
+
+        // Rotate and add corners
+        corners.forEach(p => {
+            const rotated = rotatePoint(p, center, rotation)
+            points.push({ ...rotated, type: 'corner' })
+        })
+
+        // Rotate and add midpoints
+        midpoints.forEach(p => {
+            const rotated = rotatePoint(p, center, rotation)
+            points.push({ ...rotated, type: 'edge' })
+        })
     }
 
     return points
@@ -71,17 +103,18 @@ const getElementSnapPoints = (el: any) => {
 const applySnap = (
     pos: { x: number; y: number },
     elements: any[],
-    excludeId: string,
+    draggedElement: any,
     threshold: number = SNAP_THRESHOLD
 ): { x: number; y: number; snappedX: boolean; snappedY: boolean } => {
-    let snappedX = false
-    let snappedY = false
     let resultX = pos.x
     let resultY = pos.y
+    let snappedX = false
+    let snappedY = false
+    let minDist = threshold
 
-    // First, try to snap to grid
-    const gridSnappedX = snapToGrid(pos.x, GRID_SIZE)
-    const gridSnappedY = snapToGrid(pos.y, GRID_SIZE)
+    // 1. Snap to Grid (10cm = 5px)
+    const gridSnappedX = snapToGrid(pos.x, SNAP_GRID_SIZE)
+    const gridSnappedY = snapToGrid(pos.y, SNAP_GRID_SIZE)
 
     if (Math.abs(gridSnappedX - pos.x) <= threshold) {
         resultX = gridSnappedX
@@ -92,21 +125,36 @@ const applySnap = (
         snappedY = true
     }
 
-    // Then, try to snap to other elements (higher priority)
-    for (const el of elements) {
-        if (el.id === excludeId) continue
+    // 2. Snap to Objects (Corner-to-Corner "Auto Join")
+    // Create a temporary element representing the dragged element at the new position
+    // If draggedElement is not provided (e.g. initial load), skip object snap or use pos
+    if (draggedElement) {
+        const tempEl = { ...draggedElement, x: pos.x, y: pos.y }
+        const mySnapPoints = getElementSnapPoints(tempEl)
 
-        const snapPoints = getElementSnapPoints(el)
-        for (const point of snapPoints) {
-            // Snap X
-            if (!snappedX && Math.abs(point.x - pos.x) <= threshold) {
-                resultX = point.x
-                snappedX = true
-            }
-            // Snap Y
-            if (!snappedY && Math.abs(point.y - pos.y) <= threshold) {
-                resultY = point.y
-                snappedY = true
+        for (const el of elements) {
+            if (el.id === draggedElement.id) continue
+
+            const targetSnapPoints = getElementSnapPoints(el)
+
+            for (const myPoint of mySnapPoints) {
+                for (const targetPoint of targetSnapPoints) {
+                    const dist = Math.sqrt(Math.pow(targetPoint.x - myPoint.x, 2) + Math.pow(targetPoint.y - myPoint.y, 2))
+
+                    if (dist <= minDist) {
+                        // Calculate the offset needed to align myPoint to targetPoint
+                        const offsetX = targetPoint.x - myPoint.x
+                        const offsetY = targetPoint.y - myPoint.y
+
+                        // Apply this offset to the center position
+                        resultX = pos.x + offsetX
+                        resultY = pos.y + offsetY
+
+                        minDist = dist
+                        snappedX = true
+                        snappedY = true
+                    }
+                }
             }
         }
     }
@@ -146,7 +194,7 @@ const CircleElement = ({ element, visualProps, isSelected, onSelect, onChange, o
 
                     // Apply snap if function provided
                     if (snapFn) {
-                        const snapped = snapFn({ x: finalX, y: finalY }, element.id)
+                        const snapped = snapFn({ x: finalX, y: finalY }, element)
                         finalX = snapped.x
                         finalY = snapped.y
                         // Move the Konva shape to snapped position
@@ -246,7 +294,7 @@ const RectShape = ({ element, visualProps, isSelected, onSelect, onChange, onDra
 
                     // Apply snap if function provided
                     if (snapFn) {
-                        const snapped = snapFn({ x: finalX, y: finalY }, element.id)
+                        const snapped = snapFn({ x: finalX, y: finalY }, element)
                         finalX = snapped.x
                         finalY = snapped.y
                         // Move the Konva shape to snapped position
@@ -573,7 +621,7 @@ export function VenueCanvas({
             const snapped = applySnap(
                 { x: currentX, y: currentY },
                 elements,
-                newAttrs.id
+                changedElement
             )
 
             finalAttrs.x = snapped.x
@@ -633,9 +681,10 @@ export function VenueCanvas({
     }
 
     // Snap helper function to pass to child components
-    const snapPosition = (pos: { x: number; y: number }, excludeId: string) => {
+    // Snap helper function to pass to child components
+    const snapPosition = (pos: { x: number; y: number }, element: any) => {
         if (!snapEnabled) return pos
-        return applySnap(pos, elements, excludeId)
+        return applySnap(pos, elements, element)
     }
 
     const selRect = getSelectionRect()
