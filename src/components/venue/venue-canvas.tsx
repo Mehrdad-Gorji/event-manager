@@ -185,7 +185,7 @@ const CircleElement = ({ element, visualProps, isSelected, onSelect, onChange, o
                 radius={element.radius || 15}
                 rotation={element.rotation || 0}
                 {...visualProps}
-                draggable
+                draggable={!element.locked}
                 onDragStart={onDragStart}
                 onDragMove={onDragMove}
                 onDragEnd={(e) => {
@@ -287,7 +287,7 @@ const RectShape = ({ element, visualProps, isSelected, onSelect, onChange, onDra
                 offsetX={elWidth / 2}
                 offsetY={elHeight / 2}
                 {...visualProps}
-                draggable
+                draggable={!element.locked}
                 onDragStart={onDragStart}
                 onDragMove={onDragMove}
                 onDragEnd={(e) => {
@@ -800,16 +800,26 @@ export function VenueCanvas({
                                 fontSize={el.fontSize || 16}
                                 fill={el.color || '#1e293b'}
                                 fontFamily="Arial"
-                                draggable
+                                draggable={!el.locked}
                                 onClick={(e) => handleSelect(el.id, e)}
                                 onTap={(e) => handleSelect(el.id, e)}
                                 onDragStart={(e) => handleDragStart(el.id, e)}
                                 onDragMove={(e) => handleDragMove(el.id, e)}
                                 onDragEnd={(e) => {
+                                    let finalX = e.target.x()
+                                    let finalY = e.target.y()
+
+                                    // Apply snap
+                                    const snapped = snapPosition({ x: finalX, y: finalY }, el)
+                                    finalX = snapped.x
+                                    finalY = snapped.y
+                                    e.target.x(finalX)
+                                    e.target.y(finalY)
+
                                     handleElementChange({
                                         id: el.id,
-                                        x: e.target.x(),
-                                        y: e.target.y(),
+                                        x: finalX,
+                                        y: finalY,
                                     })
                                 }}
                             />
@@ -830,7 +840,7 @@ export function VenueCanvas({
                                 rotation={rotation}
                                 scaleX={el.scaleX || 1}
                                 scaleY={el.scaleY || 1}
-                                draggable
+                                draggable={!el.locked}
                                 onClick={(e: any) => handleSelect(el.id, e)}
                                 onTap={(e: any) => handleSelect(el.id, e)}
                                 onDragStart={(e: any) => handleDragStart(el.id, e)}
@@ -907,7 +917,7 @@ export function VenueCanvas({
                                 rotation={rotation}
                                 scaleX={el.scaleX || 1}
                                 scaleY={el.scaleY || 1}
-                                draggable
+                                draggable={!el.locked}
                                 onClick={(e: any) => handleSelect(el.id, e)}
                                 onTap={(e: any) => handleSelect(el.id, e)}
                                 onDragStart={(e: any) => handleDragStart(el.id, e)}
@@ -959,7 +969,7 @@ export function VenueCanvas({
                                 rotation={rotation}
                                 scaleX={el.scaleX || 1}
                                 scaleY={el.scaleY || 1}
-                                draggable
+                                draggable={!el.locked}
                                 onClick={(e: any) => handleSelect(el.id, e)}
                                 onTap={(e: any) => handleSelect(el.id, e)}
                                 onDragStart={(e: any) => handleDragStart(el.id, e)}
@@ -1045,7 +1055,7 @@ export function VenueCanvas({
                                 x={el.x}
                                 y={el.y}
                                 rotation={el.rotation || 0}
-                                draggable
+                                draggable={!el.locked}
                                 onClick={(e: any) => handleSelect(el.id, e)}
                                 onTap={(e: any) => handleSelect(el.id, e)}
                                 onDragStart={(e: any) => handleDragStart(el.id, e)}
@@ -1103,7 +1113,7 @@ export function VenueCanvas({
                                 x={el.x}
                                 y={el.y}
                                 rotation={el.rotation || 0}
-                                draggable
+                                draggable={!el.locked}
                                 onClick={(e: any) => handleSelect(el.id, e)}
                                 onTap={(e: any) => handleSelect(el.id, e)}
                                 onDragStart={(e: any) => handleDragStart(el.id, e)}
@@ -1147,7 +1157,7 @@ export function VenueCanvas({
                                 x={el.x}
                                 y={el.y}
                                 rotation={el.rotation || 0}
-                                draggable
+                                draggable={!el.locked}
                                 onClick={(e: any) => handleSelect(el.id, e)}
                                 onTap={(e: any) => handleSelect(el.id, e)}
                                 onDragStart={(e: any) => handleDragStart(el.id, e)}
@@ -1177,7 +1187,7 @@ export function VenueCanvas({
                                 key={el.id}
                                 x={el.x}
                                 y={el.y}
-                                draggable
+                                draggable={!el.locked}
                                 onClick={(e: any) => handleSelect(el.id, e)}
                                 onTap={(e: any) => handleSelect(el.id, e)}
                                 onDragStart={(e: any) => handleDragStart(el.id, e)}
