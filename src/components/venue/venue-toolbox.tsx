@@ -291,7 +291,7 @@ export function VenueToolbox({
                 x: startX + sideWallWidth, // hinge at left wall's right edge
                 y: startY,
                 width: doorW,
-                height: t,
+                height: t / 10, // 10x thinner than wall
                 rotation: -90, // rotate so door opens rightward/downward
                 color: '#8b4513',
             },
@@ -464,7 +464,7 @@ export function VenueToolbox({
             x: 200,
             y: 200,
             width: m2px(1.0), // 1m door
-            height: m2px(0.15), // 15cm thickness
+            height: m2px(0.015), // 1.5cm thickness (10x thinner)
             label: 'Door',
             color: '#8b4513',
         })
